@@ -30,6 +30,7 @@ struct CreateInstanceView: View {
     @State private var environmentVariables: [String: String] = [:]
     @State private var commandLineArguments: [String] = []
     @State private var customIconPath: URL?
+    @State private var selectedIcon: NSImage?
     
     // MARK: - Body
     
@@ -184,22 +185,18 @@ struct CreateInstanceView: View {
             }
             
             // Custom Icon
-            HStack {
-                Text("Custom Icon")
-                Spacer()
-                if let iconURL = customIconPath {
-                    Text(iconURL.lastPathComponent)
-                        .foregroundStyle(.secondary)
-                    Button("Clear") {
-                        customIconPath = nil
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    Button("Choose...") {
-                        selectIcon()
-                    }
-                }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Instance Icon")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                
+                IconPickerView(
+                    selectedIcon: $selectedIcon,
+                    customIconPath: $customIconPath,
+                    sourceAppURL: selectedAppURL
+                )
             }
+            .padding(.vertical, 4)
         } header: {
             Text("Advanced Options")
         }
@@ -309,20 +306,6 @@ struct CreateInstanceView: View {
         if panel.runModal() == .OK, let url = panel.url {
             selectedAppURL = url
             validateApp(at: url)
-        }
-    }
-    
-    private func selectIcon() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.png, .icns, .jpeg]
-        panel.prompt = "Select"
-        panel.message = "Choose a custom icon for this instance"
-        
-        if panel.runModal() == .OK {
-            customIconPath = panel.url
         }
     }
     

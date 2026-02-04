@@ -265,11 +265,20 @@ actor BundleManager {
         
         if let customIconPath = instance.customIconPath,
            fileManager.fileExists(atPath: customIconPath.path) {
-            // Use custom icon
-            try fileManager.copyItem(at: customIconPath, to: iconDestination)
+            // Handle custom icon based on its type
+            let pathExtension = customIconPath.pathExtension.lowercased()
+            
+            if pathExtension == "icns" {
+                // Already ICNS, just copy
+                try fileManager.copyItem(at: customIconPath, to: iconDestination)
+            } else {
+                // Convert to ICNS using IconExtractor
+                let customImage = try await IconExtractor.shared.loadCustomIcon(from: customIconPath)
+                try await IconExtractor.shared.saveAsICNS(image: customImage, to: iconDestination)
+            }
             logger.debug("Copied custom icon to bundle")
         } else {
-            // Extract icon from target app
+            // Extract icon from target app using IconExtractor
             try await extractAndCopyIcon(
                 from: instance.targetAppPath,
                 to: iconDestination
@@ -279,12 +288,22 @@ actor BundleManager {
     
     /// Extract icon from source app and copy to destination
     private func extractAndCopyIcon(from appPath: URL, to destination: URL) async throws {
+        // Use IconExtractor for proper icon extraction and ICNS generation
+        do {
+            let icon = try await IconExtractor.shared.extractIcon(from: appPath, size: 512)
+            try await IconExtractor.shared.saveAsICNS(image: icon, to: destination)
+            logger.debug("Extracted and saved icon using IconExtractor")
+        } catch {
+            // Fallback: try to copy existing ICNS directly
+            try await fallbackIconCopy(from: appPath, to: destination)
+        }
+    }
+    
+    /// Fallback method to copy icon directly from bundle
+    private func fallbackIconCopy(from appPath: URL, to destination: URL) async throws {
         guard let bundle = Bundle(url: appPath) else {
             throw BundleError.invalidTargetBundle(appPath)
         }
-        
-        // Try to find the icon file
-        var iconPath: URL?
         
         // Check for CFBundleIconFile
         if let iconFileName = bundle.object(forInfoDictionaryKey: "CFBundleIconFile") as? String {
@@ -299,51 +318,31 @@ actor BundleManager {
                 .appendingPathComponent(iconName)
             
             if fileManager.fileExists(atPath: potentialPath.path) {
-                iconPath = potentialPath
+                try fileManager.copyItem(at: potentialPath, to: destination)
+                logger.debug("Copied icon directly from bundle")
+                return
             }
         }
         
-        // Check for CFBundleIconName (newer apps)
-        if iconPath == nil,
-           let iconName = bundle.object(forInfoDictionaryKey: "CFBundleIconName") as? String {
-            let assetCatalogPath = appPath
-                .appendingPathComponent("Contents")
-                .appendingPathComponent("Resources")
-                .appendingPathComponent("Assets.car")
-            
-            // For asset catalogs, we'll need to use NSWorkspace icon extraction
-            // For now, fall through to the NSWorkspace method
-        }
-        
-        // If we found an icns file, copy it
-        if let iconPath = iconPath {
-            try fileManager.copyItem(at: iconPath, to: destination)
-            logger.debug("Copied icon from: \(iconPath.path)")
-            return
-        }
-        
-        // Fallback: Use NSWorkspace to get the icon and save it
-        // This is done on MainActor since it uses AppKit
+        // Ultimate fallback: use NSWorkspace
         try await MainActor.run {
             let workspace = NSWorkspace.shared
             let icon = workspace.icon(forFile: appPath.path)
             
-            // Convert NSImage to ICNS data
             guard let tiffData = icon.tiffRepresentation,
                   let bitmap = NSBitmapImageRep(data: tiffData),
                   let pngData = bitmap.representation(using: .png, properties: [:]) else {
                 throw BundleError.iconExtractionFailed(appPath)
             }
             
-            // For now, save as PNG (will be converted to ICNS in IconExtractor)
-            // macOS will still recognize it
+            // Save as PNG temporarily
             let pngDestination = destination.deletingPathExtension().appendingPathExtension("png")
             try pngData.write(to: pngDestination)
             
-            // Rename to .icns (macOS is forgiving about this)
+            // Rename to .icns
             try self.fileManager.moveItem(at: pngDestination, to: destination)
             
-            logger.debug("Extracted icon using NSWorkspace")
+            logger.debug("Extracted icon using NSWorkspace fallback")
         }
     }
     
