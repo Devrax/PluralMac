@@ -21,6 +21,9 @@ struct InstanceDetailView: View {
     @State private var newName: String = ""
     @State private var showDeleteConfirmation = false
     @State private var deleteData = false
+    @State private var showExportSheet = false
+    @State private var showDuplicateSheet = false
+    @State private var duplicateName: String = ""
     
     // MARK: - Body
     
@@ -91,6 +94,17 @@ struct InstanceDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Do you want to delete just the shortcut, or also delete all isolated data?")
+        }
+        .alert("Duplicate Instance", isPresented: $showDuplicateSheet) {
+            TextField("New Name", text: $duplicateName)
+            Button("Cancel", role: .cancel) {}
+            Button("Duplicate") {
+                Task {
+                    try? await viewModel.duplicateInstance(instance, newName: duplicateName)
+                }
+            }
+        } message: {
+            Text("Enter a name for the duplicated instance:")
         }
     }
     
@@ -248,12 +262,22 @@ struct InstanceDetailView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            Button {
-                viewModel.revealInFinder(instance)
+            Menu {
+                Button {
+                    viewModel.revealInFinder(instance)
+                } label: {
+                    Label("Show Shortcut in Finder", systemImage: "folder")
+                }
+                
+                Button {
+                    viewModel.revealDataInFinder(instance)
+                } label: {
+                    Label("Show Data in Finder", systemImage: "folder.badge.gearshape")
+                }
             } label: {
-                Label("Show in Finder", systemImage: "folder")
+                Label("Finder", systemImage: "folder")
             }
-            .help("Show shortcut in Finder")
+            .help("Reveal in Finder")
             
             Menu {
                 Button {
@@ -264,11 +288,18 @@ struct InstanceDetailView: View {
                 }
                 
                 Button {
-                    Task {
-                        try? await viewModel.duplicateInstance(instance, newName: "\(instance.name) Copy")
-                    }
+                    duplicateName = "\(instance.name) Copy"
+                    showDuplicateSheet = true
                 } label: {
-                    Label("Duplicate", systemImage: "plus.square.on.square")
+                    Label("Duplicate...", systemImage: "plus.square.on.square")
+                }
+                
+                Divider()
+                
+                Button {
+                    exportInstance()
+                } label: {
+                    Label("Export...", systemImage: "square.and.arrow.up")
                 }
                 
                 Divider()
@@ -280,6 +311,22 @@ struct InstanceDetailView: View {
                 }
             } label: {
                 Label("More", systemImage: "ellipsis.circle")
+            }
+        }
+    }
+    
+    // MARK: - Actions
+    
+    private func exportInstance() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "\(instance.name).pluralmac.json"
+        panel.title = "Export Instance"
+        panel.message = "Choose a location to export the instance configuration"
+        
+        if panel.runModal() == .OK, let url = panel.url {
+            Task {
+                try? await viewModel.exportInstances([instance], to: url)
             }
         }
     }

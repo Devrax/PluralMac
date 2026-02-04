@@ -1,0 +1,185 @@
+//
+//  compatibility.json
+//  PluralMac
+//
+//  Compatibility database for tested applications.
+//  This file contains information about which apps have been tested
+//  and their compatibility level with PluralMac.
+//
+
+{
+  "version": 1,
+  "lastUpdated": "2026-02-04",
+  "applications": [
+    {
+      "bundleIdentifier": "com.google.Chrome",
+      "name": "Google Chrome",
+      "appType": "chromiumBased",
+      "compatibilityLevel": "full",
+      "isolationMethod": "userDataDir",
+      "recommendedArguments": [],
+      "notes": "Fully tested. Uses --user-data-dir for isolation.",
+      "testedVersion": "120.0"
+    },
+    {
+      "bundleIdentifier": "com.microsoft.edgemac",
+      "name": "Microsoft Edge",
+      "appType": "chromiumBased",
+      "compatibilityLevel": "full",
+      "isolationMethod": "userDataDir",
+      "recommendedArguments": [],
+      "notes": "Fully tested. Uses --user-data-dir for isolation.",
+      "testedVersion": "120.0"
+    },
+    {
+      "bundleIdentifier": "com.brave.Browser",
+      "name": "Brave Browser",
+      "appType": "chromiumBased",
+      "compatibilityLevel": "full",
+      "isolationMethod": "userDataDir",
+      "recommendedArguments": [],
+      "notes": "Fully tested. Uses --user-data-dir for isolation.",
+      "testedVersion": "1.60"
+    },
+    {
+      "bundleIdentifier": "com.vivaldi.Vivaldi",
+      "name": "Vivaldi",
+      "appType": "chromiumBased",
+      "compatibilityLevel": "full",
+      "isolationMethod": "userDataDir",
+      "recommendedArguments": [],
+      "notes": "Fully tested. Uses --user-data-dir for isolation.",
+      "testedVersion": "6.5"
+    },
+    {
+      "bundleIdentifier": "org.mozilla.firefox",
+      "name": "Firefox",
+      "appType": "firefoxBased",
+      "compatibilityLevel": "full",
+      "isolationMethod": "profile",
+      "recommendedArguments": [],
+      "notes": "Fully tested. Uses -profile for isolation.",
+      "testedVersion": "121.0"
+    },
+    {
+      "bundleIdentifier": "org.waterfox.waterfox",
+      "name": "Waterfox",
+      "appType": "firefoxBased",
+      "compatibilityLevel": "full",
+      "isolationMethod": "profile",
+      "recommendedArguments": [],
+      "notes": "Fully tested. Uses -profile for isolation.",
+      "testedVersion": "G6.0"
+    },
+    {
+      "bundleIdentifier": "com.tinyspeck.slackmacgap",
+      "name": "Slack",
+      "appType": "electronBased",
+      "compatibilityLevel": "full",
+      "isolationMethod": "homeRedirection",
+      "recommendedArguments": [],
+      "notes": "Fully tested. Uses HOME redirection.",
+      "testedVersion": "4.35"
+    },
+    {
+      "bundleIdentifier": "com.hnc.Discord",
+      "name": "Discord",
+      "appType": "electronBased",
+      "compatibilityLevel": "full",
+      "isolationMethod": "homeRedirection",
+      "recommendedArguments": [],
+      "notes": "Fully tested. Uses HOME redirection.",
+      "testedVersion": "0.0.290"
+    },
+    {
+      "bundleIdentifier": "com.microsoft.VSCode",
+      "name": "Visual Studio Code",
+      "appType": "electronBased",
+      "compatibilityLevel": "full",
+      "isolationMethod": "homeRedirection",
+      "recommendedArguments": [],
+      "notes": "Fully tested. Uses HOME redirection for settings and extensions.",
+      "testedVersion": "1.85"
+    },
+    {
+      "bundleIdentifier": "com.todesktop.230313mzl4w4u92",
+      "name": "Cursor",
+      "appType": "toDesktop",
+      "compatibilityLevel": "full",
+      "isolationMethod": "homeRedirection",
+      "recommendedArguments": [],
+      "notes": "Fully tested. ToDesktop app with HOME redirection.",
+      "testedVersion": "0.25"
+    },
+    {
+      "bundleIdentifier": "com.spotify.client",
+      "name": "Spotify",
+      "appType": "electronBased",
+      "compatibilityLevel": "full",
+      "isolationMethod": "homeRedirection",
+      "recommendedArguments": [],
+      "notes": "Fully tested. Uses HOME redirection.",
+      "testedVersion": "1.2.26"
+    },
+    {
+      "bundleIdentifier": "com.figma.Desktop",
+      "name": "Figma",
+      "appType": "electronBased",
+      "compatibilityLevel": "full",
+      "isolationMethod": "homeRedirection",
+      "recommendedArguments": [],
+      "notes": "Fully tested. Uses HOME redirection.",
+      "testedVersion": "124.0"
+    },
+    {
+      "bundleIdentifier": "notion.id",
+      "name": "Notion",
+      "appType": "electronBased",
+      "compatibilityLevel": "full",
+      "isolationMethod": "homeRedirection",
+      "recommendedArguments": [],
+      "notes": "Fully tested. Uses HOME redirection.",
+      "testedVersion": "3.1.0"
+    },
+    {
+      "bundleIdentifier": "com.linear",
+      "name": "Linear",
+      "appType": "electronBased",
+      "compatibilityLevel": "full",
+      "isolationMethod": "homeRedirection",
+      "recommendedArguments": [],
+      "notes": "Fully tested. Uses HOME redirection.",
+      "testedVersion": "1.0"
+    },
+    {
+      "bundleIdentifier": "com.obsproject.obs-studio",
+      "name": "OBS Studio",
+      "appType": "generic",
+      "compatibilityLevel": "partial",
+      "isolationMethod": "homeRedirection",
+      "recommendedArguments": [],
+      "notes": "Partially tested. May have issues with some plugins.",
+      "testedVersion": "30.0"
+    },
+    {
+      "bundleIdentifier": "com.apple.Safari",
+      "name": "Safari",
+      "appType": "system",
+      "compatibilityLevel": "unsupported",
+      "isolationMethod": "none",
+      "recommendedArguments": [],
+      "notes": "System app. Not supported due to system integration requirements.",
+      "testedVersion": "17.0"
+    },
+    {
+      "bundleIdentifier": "com.apple.mail",
+      "name": "Mail",
+      "appType": "system",
+      "compatibilityLevel": "unsupported",
+      "isolationMethod": "none",
+      "recommendedArguments": [],
+      "notes": "System app. Not supported.",
+      "testedVersion": "16.0"
+    }
+  ]
+}

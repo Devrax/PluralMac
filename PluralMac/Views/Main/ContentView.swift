@@ -16,6 +16,15 @@ struct ContentView: View {
     @State private var viewModel = InstanceViewModel()
     @State private var showingCreateSheet = false
     @State private var columnVisibility = NavigationSplitViewVisibility.all
+    @State private var showingImportResults = false
+    @State private var importResults: [ImportValidationResult] = []
+    @State private var showingRenameSheet = false
+    @State private var showingDuplicateSheet = false
+    @State private var showingDeleteConfirmation = false
+    @State private var renameName = ""
+    @State private var duplicateName = ""
+    
+    @EnvironmentObject private var menuBarManager: MenuBarManager
     
     // MARK: - Body
     
@@ -31,6 +40,10 @@ struct ContentView: View {
         .frame(minWidth: 700, minHeight: 450)
         .task {
             await viewModel.loadInstances()
+            menuBarManager.updateInstances(viewModel.instances)
+        }
+        .onChange(of: viewModel.instances) { _, newInstances in
+            menuBarManager.updateInstances(newInstances)
         }
         .sheet(isPresented: $showingCreateSheet) {
             CreateInstanceView(viewModel: viewModel)
@@ -41,6 +54,133 @@ struct ContentView: View {
             }
         } message: {
             Text(viewModel.errorMessage ?? "An unknown error occurred")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .importInstances)) { notification in
+            if let url = notification.userInfo?["url"] as? URL {
+                Task {
+                    await handleImport(from: url)
+                }
+            }
+        }
+        .alert("Import Instances", isPresented: $showingImportResults) {
+            Button("Import Valid") {
+                Task {
+                    let validConfigs = importResults.filter { $0.isValid }.map { $0.config }
+                    try? await viewModel.createFromImport(validConfigs)
+                }
+            }
+            .disabled(importResults.filter { $0.isValid }.isEmpty)
+            
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            let validCount = importResults.filter { $0.isValid }.count
+            let invalidCount = importResults.filter { !$0.isValid }.count
+            
+            if invalidCount > 0 {
+                Text("Found \(validCount) valid and \(invalidCount) invalid instance(s). Only valid instances can be imported.")
+            } else {
+                Text("Ready to import \(validCount) instance(s).")
+            }
+        }
+        // Handle keyboard shortcut notifications
+        .onReceive(NotificationCenter.default.publisher(for: .showCreateInstance)) { _ in
+            showingCreateSheet = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .exportAllInstances)) { _ in
+            exportAllInstances()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .launchSelectedInstance)) { _ in
+            if let instance = viewModel.selectedInstance {
+                Task { try? await viewModel.launchInstance(instance) }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .revealSelectedInstance)) { _ in
+            if let instance = viewModel.selectedInstance {
+                viewModel.revealInFinder(instance)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .revealSelectedInstanceData)) { _ in
+            if let instance = viewModel.selectedInstance {
+                viewModel.revealDataInFinder(instance)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .duplicateSelectedInstance)) { _ in
+            if let instance = viewModel.selectedInstance {
+                duplicateName = "\(instance.name) Copy"
+                showingDuplicateSheet = true
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .renameSelectedInstance)) { _ in
+            if let instance = viewModel.selectedInstance {
+                renameName = instance.name
+                showingRenameSheet = true
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .deleteSelectedInstance)) { _ in
+            if viewModel.selectedInstance != nil {
+                showingDeleteConfirmation = true
+            }
+        }
+        // Additional dialogs
+        .alert("Rename Instance", isPresented: $showingRenameSheet) {
+            TextField("Name", text: $renameName)
+            Button("Cancel", role: .cancel) {}
+            Button("Rename") {
+                if let instance = viewModel.selectedInstance {
+                    Task { try? await viewModel.renameInstance(instance, to: renameName) }
+                }
+            }
+        }
+        .alert("Duplicate Instance", isPresented: $showingDuplicateSheet) {
+            TextField("Name", text: $duplicateName)
+            Button("Cancel", role: .cancel) {}
+            Button("Duplicate") {
+                if let instance = viewModel.selectedInstance {
+                    Task { try? await viewModel.duplicateInstance(instance, newName: duplicateName) }
+                }
+            }
+        }
+        .confirmationDialog("Delete Instance", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+            Button("Delete Shortcut Only", role: .destructive) {
+                if let instance = viewModel.selectedInstance {
+                    Task { try? await viewModel.deleteInstance(instance, deleteData: false) }
+                }
+            }
+            Button("Delete Shortcut & Data", role: .destructive) {
+                if let instance = viewModel.selectedInstance {
+                    Task { try? await viewModel.deleteInstance(instance, deleteData: true) }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Do you want to delete just the shortcut, or also delete all isolated data?")
+        }
+    }
+    
+    // MARK: - Export All
+    
+    private func exportAllInstances() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "PluralMac-Backup.json"
+        panel.title = "Export All Instances"
+        
+        if panel.runModal() == .OK, let url = panel.url {
+            Task {
+                try? await viewModel.exportAllInstances(to: url)
+            }
+        }
+    }
+    
+    // MARK: - Import Handler
+    
+    private func handleImport(from url: URL) async {
+        do {
+            importResults = try await viewModel.importInstances(from: url)
+            showingImportResults = true
+        } catch {
+            viewModel.errorMessage = error.localizedDescription
+            viewModel.showError = true
         }
     }
     

@@ -15,6 +15,10 @@ struct SettingsView: View {
     @AppStorage("defaultDataDirectory") private var defaultDataDirectory: String = ""
     @AppStorage("showDockBadges") private var showDockBadges: Bool = true
     @AppStorage("confirmBeforeDelete") private var confirmBeforeDelete: Bool = true
+    @AppStorage("showMenuBarIcon") private var showMenuBarIcon: Bool = false
+    @AppStorage("keepRunningInBackground") private var keepRunningInBackground: Bool = false
+    
+    @EnvironmentObject private var menuBarManager: MenuBarManager
     
     @State private var selectedTab: SettingsTab = .general
     
@@ -24,7 +28,10 @@ struct SettingsView: View {
         TabView(selection: $selectedTab) {
             GeneralSettingsTab(
                 defaultDataDirectory: $defaultDataDirectory,
-                confirmBeforeDelete: $confirmBeforeDelete
+                confirmBeforeDelete: $confirmBeforeDelete,
+                showMenuBarIcon: $showMenuBarIcon,
+                keepRunningInBackground: $keepRunningInBackground,
+                menuBarManager: menuBarManager
             )
             .tabItem {
                 Label("General", systemImage: "gearshape")
@@ -60,9 +67,28 @@ enum SettingsTab: String, CaseIterable {
 struct GeneralSettingsTab: View {
     @Binding var defaultDataDirectory: String
     @Binding var confirmBeforeDelete: Bool
+    @Binding var showMenuBarIcon: Bool
+    @Binding var keepRunningInBackground: Bool
+    var menuBarManager: MenuBarManager
     
     var body: some View {
         Form {
+            Section {
+                Toggle("Show menu bar icon", isOn: $showMenuBarIcon)
+                    .onChange(of: showMenuBarIcon) { _, newValue in
+                        menuBarManager.isMenuBarIconVisible = newValue
+                    }
+                
+                Toggle("Keep running when window is closed", isOn: $keepRunningInBackground)
+                    .disabled(!showMenuBarIcon)
+                
+                Text("When enabled, PluralMac stays in the menu bar for quick access.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("Menu Bar")
+            }
+            
             Section {
                 HStack {
                     TextField("Data Directory", text: $defaultDataDirectory, prompt: Text("Default"))

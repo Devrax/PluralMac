@@ -276,6 +276,55 @@ final class InstanceViewModel {
         return newInstance
     }
     
+    // MARK: - Import/Export
+    
+    /// Export selected instances to a file
+    func exportInstances(_ instancesToExport: [AppInstance], to url: URL) async throws {
+        logger.info("Exporting \(instancesToExport.count) instances")
+        try await ImportExportManager.shared.exportToFile(instancesToExport, destination: url)
+        logger.info("Successfully exported instances to \(url.path)")
+    }
+    
+    /// Export all instances to a file
+    func exportAllInstances(to url: URL) async throws {
+        try await exportInstances(instances, to: url)
+    }
+    
+    /// Import instances from a file
+    /// - Parameter url: The file to import from
+    /// - Returns: Array of validation results
+    func importInstances(from url: URL) async throws -> [ImportValidationResult] {
+        logger.info("Importing instances from \(url.path)")
+        
+        let configs = try await ImportExportManager.shared.importFromFile(url)
+        let validationResults = await ImportExportManager.shared.validateImport(configs)
+        
+        return validationResults
+    }
+    
+    /// Create instances from validated import configs
+    func createFromImport(_ configs: [ImportedInstanceConfig]) async throws {
+        for config in configs {
+            do {
+                var instance = try config.createInstance()
+                
+                // Create the bundle
+                try await bundleManager.createBundle(for: instance)
+                
+                // Save to storage
+                try await store.addInstance(instance)
+                
+                // Update local list
+                instances.append(instance)
+                
+                logger.info("Imported instance: \(instance.name)")
+            } catch {
+                logger.error("Failed to import \(config.name): \(error.localizedDescription)")
+                throw error
+            }
+        }
+    }
+    
     // MARK: - Error Handling
     
     private func handleError(_ error: Error, context: String) {
