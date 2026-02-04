@@ -39,7 +39,7 @@ final class InstanceViewModel {
     
     private let logger = Logger(subsystem: "com.mtech.PluralMac", category: "InstanceViewModel")
     private let store = InstanceStore.shared
-    private let bundleManager = BundleManager.shared
+    private let directLauncher = DirectLauncher.shared
     
     // MARK: - Computed Properties
     
@@ -115,10 +115,8 @@ final class InstanceViewModel {
         instance.commandLineArguments = arguments
         instance.customIconPath = customIconPath
         
-        // Create the bundle
-        try await bundleManager.createBundle(for: instance)
-        
-        // Save to storage
+        // No bundle creation needed - we launch directly!
+        // Just save to storage
         try await store.addInstance(instance)
         
         // Update local list
@@ -134,10 +132,7 @@ final class InstanceViewModel {
     func updateInstance(_ instance: AppInstance) async throws {
         logger.info("Updating instance: \(instance.name)")
         
-        // Update the bundle
-        try await bundleManager.updateBundle(for: instance)
-        
-        // Update storage
+        // Just update storage - no bundle needed
         try await store.updateInstance(instance)
         
         // Update local list
@@ -157,10 +152,6 @@ final class InstanceViewModel {
     func renameInstance(_ instance: AppInstance, to newName: String) async throws {
         var updated = instance
         updated.rename(to: newName)
-        
-        // Need to recreate bundle with new name
-        try await bundleManager.deleteBundle(for: instance, deleteData: false)
-        try await bundleManager.createBundle(for: updated)
         
         try await store.updateInstance(updated)
         
@@ -182,8 +173,19 @@ final class InstanceViewModel {
     func deleteInstance(_ instance: AppInstance, deleteData: Bool = false) async throws {
         logger.info("Deleting instance: \(instance.name), deleteData: \(deleteData)")
         
-        // Delete the bundle
-        try await bundleManager.deleteBundle(for: instance, deleteData: deleteData)
+        // Terminate if running
+        if await directLauncher.isRunning(instance.id) {
+            _ = await directLauncher.terminate(instance.id)
+        }
+        
+        // Delete data directory if requested
+        if deleteData {
+            let fileManager = FileManager.default
+            if fileManager.fileExists(atPath: instance.dataPath.path) {
+                try fileManager.removeItem(at: instance.dataPath)
+                logger.debug("Deleted data at: \(instance.dataPath.path)")
+            }
+        }
         
         // Remove from storage
         try await store.deleteInstance(id: instance.id)
@@ -208,19 +210,19 @@ final class InstanceViewModel {
     
     // MARK: - Instance Launching
     
-    /// Launch an instance
+    /// Launch an instance directly as a child process
     func launchInstance(_ instance: AppInstance) async throws {
-        logger.info("Launching instance: \(instance.name)")
+        logger.info("Launching instance directly: \(instance.name)")
         
-        // Ensure bundle exists
-        let bundleExists = await bundleManager.bundleExists(for: instance)
-        if !bundleExists {
-            logger.warning("Bundle doesn't exist, recreating...")
-            try await bundleManager.createBundle(for: instance)
+        // Check if already running
+        if await directLauncher.isRunning(instance.id) {
+            logger.warning("Instance already running: \(instance.name)")
+            // Just bring to front if already running
+            return
         }
         
-        // Launch the app
-        _ = try await LaunchServicesHelper.launchAsync(instance.shortcutPath)
+        // Launch the app directly with modified environment
+        let process = try await directLauncher.launch(instance)
         
         // Update last launched timestamp
         var updated = instance
@@ -231,14 +233,44 @@ final class InstanceViewModel {
             instances[index] = updated
         }
         
-        logger.info("Successfully launched instance: \(instance.name)")
+        logger.info("Successfully launched instance: \(instance.name) (PID: \(process.processIdentifier))")
+    }
+    
+    /// Check if an instance is currently running
+    func isInstanceRunning(_ instance: AppInstance) -> Bool {
+        // Check synchronously - we need to make this async-safe
+        var isRunning = false
+        let semaphore = DispatchSemaphore(value: 0)
+        Task {
+            isRunning = await directLauncher.isRunning(instance.id)
+            semaphore.signal()
+        }
+        semaphore.wait()
+        return isRunning
+    }
+    
+    /// Terminate a running instance
+    func terminateInstance(_ instance: AppInstance) async -> Bool {
+        logger.info("Terminating instance: \(instance.name)")
+        return await directLauncher.terminate(instance.id)
+    }
+    
+    /// Force terminate a running instance
+    func forceTerminateInstance(_ instance: AppInstance) async -> Bool {
+        logger.info("Force terminating instance: \(instance.name)")
+        return await directLauncher.forceTerminate(instance.id)
+    }
+    
+    /// Check running status asynchronously
+    func checkIsRunning(_ instance: AppInstance) async -> Bool {
+        await directLauncher.isRunning(instance.id)
     }
     
     // MARK: - Finder Integration
     
-    /// Reveal instance shortcut in Finder
+    /// Reveal target app in Finder
     func revealInFinder(_ instance: AppInstance) {
-        LaunchServicesHelper.revealInFinder(instance.shortcutPath)
+        LaunchServicesHelper.revealInFinder(instance.targetAppPath)
     }
     
     /// Reveal instance data directory in Finder
@@ -264,10 +296,7 @@ final class InstanceViewModel {
         newInstance.eraseDataOnQuit = instance.eraseDataOnQuit
         newInstance.showMenuBarIcon = instance.showMenuBarIcon
         
-        // Create the bundle
-        try await bundleManager.createBundle(for: newInstance)
-        
-        // Save to storage
+        // No bundle needed - just save to storage
         try await store.addInstance(newInstance)
         
         // Update local list
@@ -306,12 +335,9 @@ final class InstanceViewModel {
     func createFromImport(_ configs: [ImportedInstanceConfig]) async throws {
         for config in configs {
             do {
-                var instance = try config.createInstance()
+                let instance = try config.createInstance()
                 
-                // Create the bundle
-                try await bundleManager.createBundle(for: instance)
-                
-                // Save to storage
+                // No bundle needed - just save to storage
                 try await store.addInstance(instance)
                 
                 // Update local list

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 /// Detail view showing full information about a selected instance.
 struct InstanceDetailView: View {
@@ -24,6 +25,13 @@ struct InstanceDetailView: View {
     @State private var showExportSheet = false
     @State private var showDuplicateSheet = false
     @State private var duplicateName: String = ""
+    
+    @ObservedObject private var runningManager = RunningInstancesManager.shared
+    
+    /// Check if this instance is running
+    private var isRunning: Bool {
+        runningManager.isRunning(instance.id)
+    }
     
     // MARK: - Body
     
@@ -145,16 +153,48 @@ struct InstanceDetailView: View {
             
             Spacer()
             
-            // Launch button
-            Button {
-                Task {
-                    try? await viewModel.launchInstance(instance)
+            // Running status indicator
+            if isRunning {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(.green)
+                        .frame(width: 8, height: 8)
+                    Text("Running")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-            } label: {
-                Label("Launch", systemImage: "play.fill")
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.green.opacity(0.15))
+                .clipShape(Capsule())
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            
+            // Launch or Stop button
+            if isRunning {
+                HStack(spacing: 8) {
+                    // Stop button
+                    Button(role: .destructive) {
+                        Task {
+                            _ = await viewModel.terminateInstance(instance)
+                        }
+                    } label: {
+                        Label("Stop", systemImage: "stop.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .controlSize(.large)
+                }
+            } else {
+                Button {
+                    Task {
+                        try? await viewModel.launchInstance(instance)
+                    }
+                } label: {
+                    Label("Launch", systemImage: "play.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            }
         }
     }
     

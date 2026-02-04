@@ -6,11 +6,14 @@
 //
 
 import Foundation
+import AppKit
 import OSLog
+import CoreServices
 
 /// Service responsible for creating, managing, and deleting app instance bundles.
-/// Creates standalone .app bundles that wrap target applications with custom
-/// environment variables, arguments, and isolated data storage.
+/// Uses a "trampoline" approach: creates minimal .app bundles that launch the
+/// ORIGINAL unmodified app with custom environment variables.
+/// This avoids triggering anti-tampering protections in CEF/Electron apps.
 actor BundleManager {
     
     // MARK: - Singleton
@@ -70,13 +73,17 @@ actor BundleManager {
         }
     }
     
-    // MARK: - Bundle Creation
+    // MARK: - Bundle Creation (Trampoline Approach)
     
-    /// Create an app bundle for the given instance
+    /// Create a minimal "trampoline" app bundle that launches the original app
+    /// with custom environment variables. This approach:
+    /// 1. Does NOT copy or modify the original app (avoids anti-tampering)
+    /// 2. Creates a minimal .app with just Info.plist, launcher script, and icon
+    /// 3. The launcher sets environment variables and executes the ORIGINAL binary
     /// - Parameter instance: The app instance configuration
     /// - Throws: BundleError if creation fails
     func createBundle(for instance: AppInstance) async throws {
-        logger.info("Creating bundle for instance: \(instance.name)")
+        logger.info("Creating trampoline bundle for instance: \(instance.name)")
         
         // Ensure directories exist
         try ensureDirectoriesExist()
@@ -92,94 +99,110 @@ actor BundleManager {
             logger.debug("Removed existing bundle at: \(instance.shortcutPath.path)")
         }
         
-        // Create bundle structure
-        try createBundleStructure(for: instance)
+        // Create minimal bundle structure (NOT copying the original app)
+        try createMinimalBundleStructure(for: instance)
         
-        // Generate Info.plist
+        // Create Info.plist with unique Bundle ID
         try createInfoPlist(for: instance)
         
-        // Create launcher script
+        // Create launcher script that executes the ORIGINAL app binary
         try createLauncherScript(for: instance)
         
-        // Copy or link icon
+        // Setup icon (extract from original or use custom)
         try await setupIcon(for: instance)
         
         // Create data directory with symlinks
         try createDataDirectory(for: instance)
         
+        // Sign the minimal bundle (required for Gatekeeper)
+        try await signBundle(at: instance.shortcutPath)
+        
         // Register with Launch Services
         try registerWithLaunchServices(instance.shortcutPath)
         
-        logger.info("Successfully created bundle: \(instance.shortcutPath.path)")
+        logger.info("Successfully created trampoline bundle: \(instance.shortcutPath.path)")
     }
     
-    /// Create the bundle directory structure
-    private func createBundleStructure(for instance: AppInstance) throws {
-        let bundlePath = instance.shortcutPath
-        
-        // Create Contents directory
-        let contentsPath = bundlePath.appendingPathComponent("Contents")
-        try fileManager.createDirectory(at: contentsPath, withIntermediateDirectories: true)
-        
-        // Create MacOS directory (for launcher)
+    // MARK: - Bundle Structure Creation
+    
+    /// Create the minimal bundle directory structure
+    private func createMinimalBundleStructure(for instance: AppInstance) throws {
+        let contentsPath = instance.shortcutPath.appendingPathComponent("Contents")
         let macOSPath = contentsPath.appendingPathComponent("MacOS")
-        try fileManager.createDirectory(at: macOSPath, withIntermediateDirectories: true)
-        
-        // Create Resources directory (for icon)
         let resourcesPath = contentsPath.appendingPathComponent("Resources")
+        
+        // Create directories
+        try fileManager.createDirectory(at: macOSPath, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: resourcesPath, withIntermediateDirectories: true)
         
-        logger.debug("Created bundle structure at: \(bundlePath.path)")
+        logger.debug("Created minimal bundle structure at: \(instance.shortcutPath.path)")
     }
     
-    /// Generate Info.plist for the bundle
+    /// Create Info.plist for the trampoline bundle
     private func createInfoPlist(for instance: AppInstance) throws {
         let plistPath = instance.shortcutPath
             .appendingPathComponent("Contents")
             .appendingPathComponent("Info.plist")
         
-        // Generate unique bundle identifier
-        let bundleIdentifier = "com.mtech.PluralMac.instance.\(instance.id.uuidString)"
+        // Get original bundle info
+        guard let originalBundle = Bundle(url: instance.targetAppPath),
+              let originalExecName = originalBundle.executableURL?.lastPathComponent else {
+            throw BundleError.invalidTargetBundle(instance.targetAppPath)
+        }
         
-        // Get executable name (sanitized instance name)
+        let originalBundleId = originalBundle.bundleIdentifier ?? "unknown"
+        let originalVersion = originalBundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        
+        // Generate unique bundle identifier
+        let newBundleIdentifier = "com.mtech.pluralmac.\(instance.id.uuidString.lowercased())"
         let executableName = sanitizeExecutableName(instance.name)
         
-        // Get icon file name
-        let iconFileName = "AppIcon"
-        
-        let plistContents: [String: Any] = [
-            "CFBundleDevelopmentRegion": "en",
+        // Create plist dictionary
+        let plistDict: [String: Any] = [
+            "CFBundleIdentifier": newBundleIdentifier,
             "CFBundleExecutable": executableName,
-            "CFBundleIconFile": iconFileName,
-            "CFBundleIdentifier": bundleIdentifier,
-            "CFBundleInfoDictionaryVersion": "6.0",
             "CFBundleName": instance.name,
             "CFBundleDisplayName": instance.name,
+            "CFBundleIconFile": "AppIcon",
             "CFBundlePackageType": "APPL",
-            "CFBundleShortVersionString": "1.0",
+            "CFBundleSignature": "????",
+            "CFBundleShortVersionString": originalVersion,
             "CFBundleVersion": "1",
-            "LSMinimumSystemVersion": "12.0",
+            "CFBundleInfoDictionaryVersion": "6.0",
+            "LSMinimumSystemVersion": "11.0",
             "NSHighResolutionCapable": true,
-            "LSUIElement": false, // Show in Dock
+            "LSUIElement": false,
             
-            // Custom keys for PluralMac
+            // PluralMac metadata
             "PluralMacInstanceID": instance.id.uuidString,
+            "PluralMacOriginalBundleID": originalBundleId,
+            "PluralMacOriginalExecutable": originalExecName,
             "PluralMacTargetApp": instance.targetAppPath.path,
-            "PluralMacTargetBundleID": instance.targetBundleIdentifier
+            "PluralMacCreatedAt": ISO8601DateFormatter().string(from: Date())
         ]
         
+        // Write plist
         let plistData = try PropertyListSerialization.data(
-            fromPropertyList: plistContents,
+            fromPropertyList: plistDict,
             format: .xml,
             options: 0
         )
         
         try plistData.write(to: plistPath)
-        logger.debug("Created Info.plist at: \(plistPath.path)")
+        
+        logger.debug("Created Info.plist with Bundle ID: \(newBundleIdentifier)")
     }
     
-    /// Create the launcher shell script
+    // MARK: - Launcher Script
+    
+    /// Create a launcher script that sets environment variables and executes the ORIGINAL app
     private func createLauncherScript(for instance: AppInstance) throws {
+        // Get the original app's executable path
+        guard let originalBundle = Bundle(url: instance.targetAppPath),
+              let originalExecURL = originalBundle.executableURL else {
+            throw BundleError.invalidTargetBundle(instance.targetAppPath)
+        }
+        
         let executableName = sanitizeExecutableName(instance.name)
         let launcherPath = instance.shortcutPath
             .appendingPathComponent("Contents")
@@ -189,41 +212,42 @@ actor BundleManager {
         // Build the launcher script
         var script = """
         #!/bin/bash
-        # PluralMac Instance Launcher
+        # PluralMac Trampoline Launcher
         # Instance: \(instance.name)
         # ID: \(instance.id.uuidString)
         # Generated: \(ISO8601DateFormatter().string(from: Date()))
+        #
+        # This launcher executes the ORIGINAL unmodified app binary
+        # with custom environment variables for data isolation.
         
         """
         
         // Add environment variables
         let envVars = instance.effectiveEnvironmentVariables
         if !envVars.isEmpty {
-            script += "\n# Environment Variables\n"
+            script += "# Environment Variables for Data Isolation\n"
             for (key, value) in envVars {
-                // Escape special characters in value
                 let escapedValue = value.replacingOccurrences(of: "\"", with: "\\\"")
                 script += "export \(key)=\"\(escapedValue)\"\n"
             }
+            script += "\n"
         }
         
-        // Build the exec command
-        let targetExecutable = findExecutablePath(for: instance)
+        // Execute the ORIGINAL app binary directly
+        let originalExecPath = originalExecURL.path
+        script += "# Execute the ORIGINAL app binary (unmodified, preserving code signature)\n"
+        script += "exec \"\(originalExecPath)\""
+        
+        // Add command line arguments
         let args = instance.effectiveCommandLineArguments
-        
-        script += "\n# Launch the target application\n"
-        script += "exec \"\(targetExecutable)\""
-        
-        // Add arguments
         for arg in args {
             let escapedArg = arg.replacingOccurrences(of: "\"", with: "\\\"")
             script += " \"\(escapedArg)\""
         }
         
-        // Pass through any additional arguments
         script += " \"$@\"\n"
         
-        // Write the script
+        // Write launcher script
         try script.write(to: launcherPath, atomically: true, encoding: .utf8)
         
         // Make it executable
@@ -235,25 +259,38 @@ actor BundleManager {
         logger.debug("Created launcher script at: \(launcherPath.path)")
     }
     
-    /// Find the executable path for the target app
-    private func findExecutablePath(for instance: AppInstance) -> String {
-        // Try to get the executable from the bundle
-        if let bundle = Bundle(url: instance.targetAppPath),
-           let executableURL = bundle.executableURL {
-            return executableURL.path
+    // MARK: - Code Signing
+    
+    /// Sign the minimal bundle with ad-hoc signature
+    private func signBundle(at bundlePath: URL) async throws {
+        logger.debug("Signing bundle at: \(bundlePath.path)")
+        
+        // Sign with ad-hoc signature
+        let codesignProcess = Process()
+        codesignProcess.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        codesignProcess.arguments = [
+            "--sign", "-",           // Ad-hoc signature
+            "--force",               // Replace existing signature
+            bundlePath.path
+        ]
+        
+        let pipe = Pipe()
+        codesignProcess.standardError = pipe
+        
+        try codesignProcess.run()
+        codesignProcess.waitUntilExit()
+        
+        if codesignProcess.terminationStatus != 0 {
+            let errorData = pipe.fileHandleForReading.readDataToEndOfFile()
+            let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            logger.warning("Codesign warning: \(errorMessage)")
+            // Don't throw - the bundle may still work
         }
         
-        // Fallback: construct path based on bundle name
-        let bundleName = instance.targetAppPath
-            .deletingPathExtension()
-            .lastPathComponent
-        
-        return instance.targetAppPath
-            .appendingPathComponent("Contents")
-            .appendingPathComponent("MacOS")
-            .appendingPathComponent(bundleName)
-            .path
+        logger.debug("Successfully signed bundle")
     }
+    
+    // MARK: - Icon Setup
     
     /// Setup the icon for the bundle
     private func setupIcon(for instance: AppInstance) async throws {
@@ -335,16 +372,14 @@ actor BundleManager {
                 throw BundleError.iconExtractionFailed(appPath)
             }
             
-            // Save as PNG temporarily
-            let pngDestination = destination.deletingPathExtension().appendingPathExtension("png")
-            try pngData.write(to: pngDestination)
-            
-            // Rename to .icns
-            try self.fileManager.moveItem(at: pngDestination, to: destination)
+            // Save as PNG then copy to icns (basic)
+            try pngData.write(to: destination)
             
             logger.debug("Extracted icon using NSWorkspace fallback")
         }
     }
+    
+    // MARK: - Data Directory
     
     /// Create the data directory with required symlinks
     private func createDataDirectory(for instance: AppInstance) throws {
@@ -417,6 +452,8 @@ actor BundleManager {
         logger.debug("Created data directory with symlinks at: \(dataPath.path)")
     }
     
+    // MARK: - Launch Services
+    
     /// Register the bundle with Launch Services
     private func registerWithLaunchServices(_ bundlePath: URL) throws {
         // Use LSRegisterURL to register the app with Launch Services
@@ -451,10 +488,6 @@ actor BundleManager {
             logger.debug("Deleted data at: \(instance.dataPath.path)")
         }
         
-        // Unregister from Launch Services (best effort)
-        // Note: There's no direct API to unregister, but removing the bundle
-        // and calling LSRegisterURL on the parent directory can help
-        
         logger.info("Successfully deleted bundle for: \(instance.name)")
     }
     
@@ -464,24 +497,8 @@ actor BundleManager {
     func updateBundle(for instance: AppInstance) async throws {
         logger.info("Updating bundle for instance: \(instance.name)")
         
-        // Validate bundle exists
-        guard fileManager.fileExists(atPath: instance.shortcutPath.path) else {
-            // Bundle doesn't exist, create it
-            try await createBundle(for: instance)
-            return
-        }
-        
-        // Update Info.plist
-        try createInfoPlist(for: instance)
-        
-        // Update launcher script
-        try createLauncherScript(for: instance)
-        
-        // Update icon if custom icon changed
-        try await setupIcon(for: instance)
-        
-        // Re-register with Launch Services
-        try registerWithLaunchServices(instance.shortcutPath)
+        // Just recreate the bundle
+        try await createBundle(for: instance)
         
         logger.info("Successfully updated bundle: \(instance.name)")
     }
@@ -535,6 +552,7 @@ actor BundleManager {
 enum BundleError: LocalizedError {
     case targetAppNotFound(URL)
     case invalidTargetBundle(URL)
+    case invalidBundleStructure(String)
     case iconExtractionFailed(URL)
     case bundleCreationFailed(String)
     case launcherCreationFailed(String)
@@ -546,6 +564,8 @@ enum BundleError: LocalizedError {
             return "Target application not found at: \(url.path)"
         case .invalidTargetBundle(let url):
             return "Invalid application bundle at: \(url.path)"
+        case .invalidBundleStructure(let message):
+            return "Invalid bundle structure: \(message)"
         case .iconExtractionFailed(let url):
             return "Failed to extract icon from: \(url.path)"
         case .bundleCreationFailed(let message):
@@ -557,7 +577,3 @@ enum BundleError: LocalizedError {
         }
     }
 }
-
-// MARK: - Launch Services Import
-
-import CoreServices

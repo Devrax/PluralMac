@@ -55,6 +55,9 @@ struct AppInstance: Identifiable, Codable, Hashable, Sendable {
     /// Whether to show a menu bar icon when running
     var showMenuBarIcon: Bool
     
+    /// Optional notes/description for this instance
+    var notes: String?
+    
     /// Creation date
     let createdAt: Date
     
@@ -99,6 +102,7 @@ struct AppInstance: Identifiable, Codable, Hashable, Sendable {
         self.isolationMethodOverride = nil
         self.eraseDataOnQuit = false
         self.showMenuBarIcon = false
+        self.notes = nil
         
         // Timestamps
         self.createdAt = Date()
@@ -127,10 +131,14 @@ struct AppInstance: Identifiable, Codable, Hashable, Sendable {
     var effectiveEnvironmentVariables: [String: String] {
         var env = environmentVariables
         
-        // Add HOME redirection if using that isolation method
-        if effectiveIsolationMethod == .homeRedirection {
-            env["HOME"] = dataPath.path
-        }
+        // Always redirect HOME for complete isolation
+        // This ensures apps that hardcode paths still work
+        env["HOME"] = dataPath.path
+        
+        // Also set XDG directories for apps that use them
+        env["XDG_CONFIG_HOME"] = dataPath.appendingPathComponent(".config").path
+        env["XDG_DATA_HOME"] = dataPath.appendingPathComponent(".local/share").path
+        env["XDG_CACHE_HOME"] = dataPath.appendingPathComponent(".cache").path
         
         return env
     }
@@ -139,6 +147,30 @@ struct AppInstance: Identifiable, Codable, Hashable, Sendable {
     var effectiveCommandLineArguments: [String] {
         var args = commandLineArguments
         
+        // Check for app-specific arguments first
+        let bundleId = targetBundleIdentifier.lowercased()
+        
+        // Spotify uses --mu for multiple instances
+        if bundleId.contains("spotify") {
+            args.append("--mu=\(id.uuidString)")
+            return args
+        }
+        
+        // Discord uses --multi-instance
+        if bundleId.contains("discord") {
+            args.append("--multi-instance")
+            // Discord also needs a separate user data dir
+            args.append("--user-data-dir=\(dataPath.path)")
+            return args
+        }
+        
+        // Slack uses --user-data-dir
+        if bundleId.contains("slack") {
+            args.append("--user-data-dir=\(dataPath.path)")
+            return args
+        }
+        
+        // Default behavior based on isolation method
         switch effectiveIsolationMethod {
         case .userDataDir:
             args.append("--user-data-dir=\(dataPath.path)")

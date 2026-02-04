@@ -19,6 +19,13 @@ struct InstanceRowView: View {
     @State private var appIcon: NSImage?
     @State private var isHovering = false
     
+    @ObservedObject private var runningManager = RunningInstancesManager.shared
+    
+    /// Check if this instance is running
+    private var isRunning: Bool {
+        runningManager.isRunning(instance.id)
+    }
+    
     // MARK: - Body
     
     var body: some View {
@@ -45,18 +52,40 @@ struct InstanceRowView: View {
             
             Spacer()
             
-            // Quick launch button (shown on hover)
+            // Running indicator
+            if isRunning {
+                Circle()
+                    .fill(.green)
+                    .frame(width: 8, height: 8)
+                    .help("Running")
+            }
+            
+            // Quick action button (shown on hover)
             if isHovering {
-                Button {
-                    Task {
-                        try? await viewModel.launchInstance(instance)
+                if isRunning {
+                    Button {
+                        Task {
+                            _ = await viewModel.terminateInstance(instance)
+                        }
+                    } label: {
+                        Image(systemName: "stop.fill")
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
-                } label: {
-                    Image(systemName: "play.fill")
-                        .font(.caption)
+                    .buttonStyle(.borderless)
+                    .help("Stop")
+                } else {
+                    Button {
+                        Task {
+                            try? await viewModel.launchInstance(instance)
+                        }
+                    } label: {
+                        Image(systemName: "play.fill")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Launch")
                 }
-                .buttonStyle(.borderless)
-                .help("Launch")
             }
         }
         .padding(.vertical, 4)

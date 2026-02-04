@@ -129,7 +129,7 @@ struct LaunchServicesHelper: Sendable {
     static func launchAsync(
         _ bundleURL: URL,
         arguments: [String] = [],
-        environment: [String: String] = []
+        environment: [String: String] = [:]
     ) async throws -> NSRunningApplication {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.arguments = arguments

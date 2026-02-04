@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Main content view of the application.
 /// Uses a NavigationSplitView with sidebar list and detail view.
@@ -24,8 +25,6 @@ struct ContentView: View {
     @State private var renameName = ""
     @State private var duplicateName = ""
     
-    @EnvironmentObject private var menuBarManager: MenuBarManager
-    
     // MARK: - Body
     
     var body: some View {
@@ -40,10 +39,12 @@ struct ContentView: View {
         .frame(minWidth: 700, minHeight: 450)
         .task {
             await viewModel.loadInstances()
-            menuBarManager.updateInstances(viewModel.instances)
+            await MenuBarManager.shared.updateInstances(viewModel.instances)
         }
         .onChange(of: viewModel.instances) { _, newInstances in
-            menuBarManager.updateInstances(newInstances)
+            Task { @MainActor in
+                MenuBarManager.shared.updateInstances(newInstances)
+            }
         }
         .sheet(isPresented: $showingCreateSheet) {
             CreateInstanceView(viewModel: viewModel)

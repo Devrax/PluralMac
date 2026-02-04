@@ -6,12 +6,12 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 struct PluralMacApp: App {
     
     @State private var showImportSheet = false
-    @StateObject private var menuBarManager = MenuBarManager.shared
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
@@ -19,15 +19,13 @@ struct PluralMacApp: App {
             ContentView()
                 .fileImporter(
                     isPresented: $showImportSheet,
-                    allowedContentTypes: [.json],
+                    allowedContentTypes: [UTType.json],
                     allowsMultipleSelection: false
                 ) { result in
                     handleImport(result)
                 }
-                .environmentObject(menuBarManager)
         }
         .windowStyle(.automatic)
-        .defaultSize(width: 900, height: 600)
         .commands {
             // Custom commands
             PluralMacCommands(showImportSheet: $showImportSheet)
@@ -36,7 +34,6 @@ struct PluralMacApp: App {
         #if os(macOS)
         Settings {
             SettingsView()
-                .environmentObject(menuBarManager)
         }
         #endif
     }

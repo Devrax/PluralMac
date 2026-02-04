@@ -68,7 +68,10 @@ enum AppType: String, Codable, CaseIterable, Sendable {
             return .userDataDir
         case .firefox:
             return .profileArgument
-        case .electron, .toDesktop, .generic:
+        case .electron, .toDesktop:
+            // Most Electron/CEF apps support --user-data-dir
+            return .userDataDir
+        case .generic:
             return .homeRedirection
         case .sandboxed, .system:
             return .none

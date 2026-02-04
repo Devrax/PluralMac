@@ -79,7 +79,7 @@ extension InstanceTemplate {
     static let chromeWork = InstanceTemplate(
         name: "Chrome - Work",
         description: "Chrome instance for work with separate profile",
-        appType: .chromiumBased,
+        appType: .chromium,
         suggestedName: "Chrome Work",
         environmentVariables: [:],
         commandLineArguments: [],
@@ -90,7 +90,7 @@ extension InstanceTemplate {
     static let chromePersonal = InstanceTemplate(
         name: "Chrome - Personal",
         description: "Chrome instance for personal browsing",
-        appType: .chromiumBased,
+        appType: .chromium,
         suggestedName: "Chrome Personal",
         environmentVariables: [:],
         commandLineArguments: [],
@@ -101,7 +101,7 @@ extension InstanceTemplate {
     static let chromeDev = InstanceTemplate(
         name: "Chrome - Development",
         description: "Chrome for web development with DevTools flags",
-        appType: .chromiumBased,
+        appType: .chromium,
         suggestedName: "Chrome Dev",
         environmentVariables: [:],
         commandLineArguments: [
@@ -116,22 +116,22 @@ extension InstanceTemplate {
     static let firefoxPrivate = InstanceTemplate(
         name: "Firefox - Private",
         description: "Firefox with enhanced privacy settings",
-        appType: .firefoxBased,
+        appType: .firefox,
         suggestedName: "Firefox Private",
         environmentVariables: [:],
         commandLineArguments: [],
-        isolationMethod: .profile,
+        isolationMethod: .profileArgument,
         iconSymbol: "lock.shield.fill"
     )
     
     static let firefoxDev = InstanceTemplate(
         name: "Firefox - Developer",
         description: "Firefox for web development",
-        appType: .firefoxBased,
+        appType: .firefox,
         suggestedName: "Firefox Dev",
         environmentVariables: [:],
         commandLineArguments: ["-devtools"],
-        isolationMethod: .profile,
+        isolationMethod: .profileArgument,
         iconSymbol: "hammer.fill"
     )
     
@@ -140,7 +140,7 @@ extension InstanceTemplate {
     static let slackWork = InstanceTemplate(
         name: "Slack - Work",
         description: "Slack for primary work workspace",
-        appType: .electronBased,
+        appType: .electron,
         suggestedName: "Slack Work",
         environmentVariables: [:],
         commandLineArguments: [],
@@ -151,7 +151,7 @@ extension InstanceTemplate {
     static let slackPersonal = InstanceTemplate(
         name: "Slack - Personal",
         description: "Slack for personal or secondary workspaces",
-        appType: .electronBased,
+        appType: .electron,
         suggestedName: "Slack Personal",
         environmentVariables: [:],
         commandLineArguments: [],
@@ -162,7 +162,7 @@ extension InstanceTemplate {
     static let discordAlt = InstanceTemplate(
         name: "Discord - Alt Account",
         description: "Discord for alternative account",
-        appType: .electronBased,
+        appType: .electron,
         suggestedName: "Discord Alt",
         environmentVariables: [:],
         commandLineArguments: [],
@@ -175,7 +175,7 @@ extension InstanceTemplate {
     static let vscodeProject = InstanceTemplate(
         name: "VS Code - Project",
         description: "VS Code with isolated settings and extensions",
-        appType: .electronBased,
+        appType: .electron,
         suggestedName: "VS Code Project",
         environmentVariables: [:],
         commandLineArguments: [],
@@ -186,7 +186,7 @@ extension InstanceTemplate {
     static let cursorProject = InstanceTemplate(
         name: "Cursor - Project",
         description: "Cursor IDE with isolated settings",
-        appType: .electronBased,
+        appType: .electron,
         suggestedName: "Cursor Project",
         environmentVariables: [:],
         commandLineArguments: [],
@@ -199,7 +199,7 @@ extension InstanceTemplate {
     static let spotifyAlt = InstanceTemplate(
         name: "Spotify - Alt Account",
         description: "Spotify for secondary account",
-        appType: .electronBased,
+        appType: .electron,
         suggestedName: "Spotify Alt",
         environmentVariables: [:],
         commandLineArguments: [],
@@ -255,7 +255,7 @@ extension InstanceTemplate {
             appType: application.appType,
             suggestedName: "\(application.name) Instance",
             environmentVariables: [:],
-            commandLineArguments: application.appType.recommendedArguments,
+            commandLineArguments: [],
             isolationMethod: application.appType.isolationMethod,
             iconSymbol: "app.fill"
         )

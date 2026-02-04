@@ -8,6 +8,7 @@
 import Foundation
 import AppKit
 import SwiftUI
+import Combine
 import OSLog
 
 /// Manages the menu bar (status bar) icon and menu for quick access to instances.
@@ -222,10 +223,4 @@ final class MenuBarManager: NSObject, ObservableObject {
         self.instances = newInstances
         updateMenu()
     }
-}
-
-// MARK: - Notification Names
-
-extension Notification.Name {
-    static let showCreateInstance = Notification.Name("com.mtech.PluralMac.showCreateInstance")
 }

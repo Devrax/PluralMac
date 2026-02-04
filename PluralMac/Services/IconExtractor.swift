@@ -215,7 +215,7 @@ actor IconExtractor {
     ///   - image: The source image
     ///   - size: Target size
     /// - Returns: Resized image
-    func resizeImage(_ image: NSImage, to size: NSSize) -> NSImage {
+    nonisolated func resizeImage(_ image: NSImage, to size: NSSize) -> NSImage {
         let newImage = NSImage(size: size)
         
         newImage.lockFocus()

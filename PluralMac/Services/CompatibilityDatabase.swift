@@ -36,9 +36,9 @@ actor CompatibilityDatabase {
         
         var appTypeEnum: AppType {
             switch appType {
-            case "chromiumBased": return .chromiumBased
-            case "firefoxBased": return .firefoxBased
-            case "electronBased": return .electronBased
+            case "chromium", "chromiumBased": return .chromium
+            case "firefox", "firefoxBased": return .firefox
+            case "electron", "electronBased": return .electron
             case "toDesktop": return .toDesktop
             case "sandboxed": return .sandboxed
             case "system": return .system
@@ -58,7 +58,7 @@ actor CompatibilityDatabase {
         var isolationMethodEnum: DataIsolationMethod {
             switch isolationMethod {
             case "userDataDir": return .userDataDir
-            case "profile": return .profile
+            case "profile", "profileArgument": return .profileArgument
             case "homeRedirection": return .homeRedirection
             case "none": return .none
             default: return .homeRedirection
