@@ -156,11 +156,11 @@ struct AppInstance: Identifiable, Codable, Hashable, Sendable {
             return args
         }
         
-        // Discord uses --multi-instance
+        // Discord uses --multi-instance to allow multiple windows
+        // NOTE: Discord does NOT support data isolation - it ignores --user-data-dir and HOME
+        // All instances share the same account/data. This only allows multiple windows.
         if bundleId.contains("discord") {
             args.append("--multi-instance")
-            // Discord also needs a separate user data dir
-            args.append("--user-data-dir=\(dataPath.path)")
             return args
         }
         

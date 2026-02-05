@@ -48,7 +48,7 @@ PluralMac allows you to run multiple independent instances of the same macOS app
 | **Brave Browser** | `--user-data-dir` | Full profile isolation |
 | **Arc Browser** | `--user-data-dir` | Full profile isolation |
 | **Vivaldi** | `--user-data-dir` | Full profile isolation |
-| **Discord** | `--multi-instance` + `--user-data-dir` | Separate accounts |
+| **Discord** | `--multi-instance` | ⚠️ Multiple windows only, same account |
 | **Slack** | `--user-data-dir` | Multiple workspaces |
 | **VS Code** | `--user-data-dir` | Per-project environments |
 | **Cursor** | `--user-data-dir` | Per-project environments |
@@ -70,6 +70,12 @@ PluralMac allows you to run multiple independent instances of the same macOS app
 | **Mac App Store apps** | Sandboxed - cannot modify data location |
 | **Apple system apps** | Protected by SIP |
 | **Apps with license verification** | May detect multiple instances |
+
+### ⚠️ Limited Support (Multiple Windows Only)
+
+| App | Notes |
+|-----|-------|
+| **Discord** | Can run multiple windows with `--multi-instance`, but ALL share the same account/data. Discord ignores `--user-data-dir` and `HOME` redirection. |
 
 ## Installation
 
