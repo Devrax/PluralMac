@@ -82,40 +82,29 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: PluralMac-${{ github.sha }}
+          path: release/PluralMac.app
 
-      - name: Select Xcode Version
-        run: sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
+      - name: Get Version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Build Release
+      - name: Create Release ZIP
         run: |
-          xcodebuild clean build \
-            -project "PluralMac.xcodeproj" \
-            -scheme "PluralMac" \
-            -configuration Release \
-            -derivedDataPath build \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
-
-      - name: Prepare Release Assets
-        run: |
-          APP_PATH=$(find build -name "PluralMac.app" -type d | head -1)
-          mkdir -p release
-          cp -R "$APP_PATH" release/
-          
           cd release
-          # Create ZIP with version in name
-          VERSION=${GITHUB_REF#refs/tags/}
-          zip -r -y "PluralMac-${VERSION}-macOS.zip" PluralMac.app
-          
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          # Ensure proper permissions
+          chmod -R 755 PluralMac.app
+          # Create ZIP preserving symlinks and resource forks
+          ditto -c -k --sequesterRsrc --keepParent PluralMac.app "PluralMac-${{ steps.version.outputs.VERSION }}-macOS.zip"
+          ls -la
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          files: release/PluralMac-${{ env.VERSION }}-macOS.zip
+          files: release/PluralMac-${{ steps.version.outputs.VERSION }}-macOS.zip
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
