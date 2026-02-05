@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="#showcase">Showcase</a> •
   <a href="#features">Features</a> •
   <a href="#supported-apps">Supported Apps</a> •
   <a href="#installation">Installation</a> •
@@ -28,6 +29,28 @@ PluralMac allows you to run multiple independent instances of the same macOS app
 - 🌐 **Multiple browser profiles** - Work/personal separation
 
 > ⚠️ **Note**: Not all apps support data isolation. See [Technical Limitations](#technical-limitations) for details on why some apps (like Discord) cannot have separate accounts.
+
+## Showcase
+
+### 1. Initial App View
+<p align="center">
+  <img src="docs/images/initial-app.png" alt="PluralMac Initial View" width="600">
+</p>
+
+### 2. Creating a New Instance
+<p align="center">
+  <img src="docs/images/creating-instance.png" alt="Creating Instance" width="600">
+</p>
+
+### 3. Selecting an Application (GitHub Desktop)
+<p align="center">
+  <img src="docs/images/creating-instance-ghdesktop.png" alt="Selecting GitHub Desktop" width="600">
+</p>
+
+### 4. Running Multiple Instances
+<p align="center">
+  <img src="docs/images/running-multiple-instaces.png" alt="Multiple Instances Running" width="600">
+</p>
 
 ## Features
 
