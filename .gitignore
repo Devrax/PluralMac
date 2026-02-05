@@ -58,3 +58,5 @@ fastlane/test_output
 
 // Code Injection
 iOSInjectionProject/
+.github/copilot-instructions.md
+PENDING.md
