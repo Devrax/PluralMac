@@ -24,9 +24,10 @@ PluralMac allows you to run multiple independent instances of the same macOS app
 
 - 🎵 **Multiple Spotify accounts** - Personal and work playlists on separate instances
 - 💬 **Multiple Slack workspaces** - Different accounts running simultaneously  
-- 🎮 **Multiple Discord accounts** - Gaming and community servers separate
 - 💻 **Multiple VS Code/Cursor instances** - Per-project isolated environments
 - 🌐 **Multiple browser profiles** - Work/personal separation
+
+> ⚠️ **Note**: Not all apps support data isolation. See [Technical Limitations](#technical-limitations) for details on why some apps (like Discord) cannot have separate accounts.
 
 ## Features
 
@@ -247,6 +248,74 @@ To add support for a new application:
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
+
+## Technical Limitations
+
+### Why Some Apps Cannot Be Isolated
+
+Some applications (like Discord, WhatsApp Desktop, and others) **cannot have their data isolated** on macOS, even with PluralMac. This is a fundamental limitation of macOS, not a bug in PluralMac ( also I lack the current skills and knowledge to work around these limitations ).
+
+#### The Problem
+
+These apps **hardcode their data paths** directly in the binary:
+
+```javascript
+// Discord's internal code (simplified)
+const dataPath = path.join(os.homedir(), 'Library/Application Support/discord');
+// This path is NOT configurable via arguments or environment variables
+```
+
+#### Why Our Isolation Methods Fail
+
+| Technique | Result | Why It Fails |
+|-----------|--------|--------------|
+| `--user-data-dir` argument | ❌ Ignored | Discord doesn't implement this Electron flag |
+| `HOME` environment variable | ❌ Ignored | Discord uses `os.homedir()` which reads from system, not env |
+| `sandbox-exec` | ❌ Can only block | macOS sandbox can deny access, but cannot redirect paths |
+| `DYLD_INSERT_LIBRARIES` | ❌ Blocked | Discord has Hardened Runtime enabled (`flags=0x10000`) |
+| Symlink swapping | ❌ Dangerous | Would affect ALL running instances simultaneously |
+| Filesystem namespaces | ❌ Not available | macOS doesn't have Linux-style mount namespaces |
+
+#### The Concurrency Problem with Symlinks
+
+Even if we tried symlink swapping, it would fail catastrophically:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Timeline of Disaster:                                      │
+│                                                             │
+│  1. Discord Instance A is running                           │
+│     → Uses ~/Library/Application Support/discord            │
+│                                                             │
+│  2. User launches Instance B                                │
+│     → PluralMac swaps symlink to point to instance-B data   │
+│                                                             │
+│  3. Instance A tries to write to its database               │
+│     → Files have "disappeared" → CRASH or DATA CORRUPTION   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Apps That Work vs Apps That Don't
+
+| App | Works? | Reason |
+|-----|--------|--------|
+| **Spotify** | ✅ | Implements `--mu` flag for official multi-instance |
+| **Chrome/Edge/Brave** | ✅ | Implements `--user-data-dir` flag |
+| **VS Code/Cursor** | ✅ | Implements `--user-data-dir` flag |
+| **Firefox** | ✅ | Implements `-profile` flag |
+| **Discord** | ❌ | Ignores all isolation methods |
+| **WhatsApp Desktop** | ❌ | Hardcoded paths, no isolation support |
+| **Telegram Desktop** | ⚠️ | May work with `-many` flag (untested) |
+
+#### The Only Real Solutions
+
+For apps that don't support isolation, the only options are:
+
+1. **Different macOS user accounts** - Each user has separate `~/Library` (heavy, impractical)
+2. **Virtual machines** - Run the app in separate VMs (very heavy)
+3. **Wait for developer support** - Request the app developer add multi-instance support
+4. **Web version** - Use the web app in different browser profiles
+5. **Wait for me to learn advanced macOS internals** - Maybe in the future I'll find a workaround!
 
 ## Acknowledgments
 
